@@ -1,0 +1,239 @@
+---
+title: "BeautifulSoup_blog"
+author: "Victoria Stavish"
+date: "2023-04-29"
+output: html_document
+---
+
+```{python setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The library I had the most success with is [BeautifulSoup](https://www.crummy.com/software/BeautifulSoup/bs4/doc/). I've used BeautifulSoup for some Python homework assignments in the information science major, but this is the first time I have actually had to make an effort to understand it for my own use.
+
+I used BeautifulSoup to scrape the HTML of a webpage for my automated web scraper project. First, I imported [bs4](http://omz-software.com/pythonista/docs/ios/beautifulsoup.html#:~:text=Beautiful%20Soup%20is%20a%20Python,hours%20or%20days%20of%20work.) from BeautifulSoup.
+
+BeautifulSoup is a Python library that allows you to grab data from HTML files (which is what we are doing here) or XML files.
+
+```{python}
+
+from bs4 import BeautifulSoup
+
+```
+
+I also imported a few more libraries that aren't BeautifulSoup
+
+[requests](https://requests.readthedocs.io/en/latest/) allows you to send and receive data from websites easily
+
+[pprint](https://docs.python.org/3/library/pprint.html) allows you to take ugly structures and outputs (like HTML outputs) and make them pretty, hence the name pretty print
+
+and [csv](https://docs.python.org/3/library/csv.html) allows you to import and export data in the form of CSVs
+
+```{python}
+
+import requests
+from pprint import pprint
+import csv
+
+```
+
+I'm scraping The University of Maryland's [Diversity, Equity and Inclusion dashboard](https://diversity.umd.edu/black-student-leaders), which is based off of 25 demands outlined by Black student leaders in 2020.
+
+Before I got into any BeautifulSoup shenanigans, I assigned the URL I was scraping to an object called 'url'. I also defined an object that the file with all my data will be assigned to. This object is 'filename' and the data is in the demandstable.csv.
+
+```{python}
+
+# website I'm scraping
+url = 'https://diversity.umd.edu/black-student-leaders'
+response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+
+# set file in an object
+filename = "demandstable.csv"
+
+```
+
+Now we're getting into the BeautifulSoup! First I tell it that I'm parsing the HTML on the URL. This means I will be taking specific parts of the HTML code on the website to tell BeautifulSoup which parts of the website I want to scrape.
+
+Then, I tell BeautifulSoup that the primary div tag within the URL's HTML that I want to scrape is called 'data-card: details'.
+
+```{python}
+
+# beautiful soup
+soup = BeautifulSoup(response.content, "html.parser")
+
+# define big div we working in 
+divs = soup.find_all("div", {"data-card": "details"})
+
+```
+
+But how do I know I want the data-card:details div? I know because When I went to the url, I right clicked on the page and clicked 'inspect'. From there, I was able to figure out which portion of the URL (This could be a div, class, list, etc.) was repeated on every location I wanted to scrape.
+
+![](images/screenshot_38.png)
+
+I did go through quite a bit of trial and error here, testing out different HTML tags and divs until I finally figured out the one that yielded my desired results. Yay!
+
+![](images/screenshot_39.png)
+
+```{python}
+
+
+```
+
+Next, I had to outline the columns of the CSV I would like the data to be input into. I do this by creating a new CSV file and asking it to create a new line every time I loop through the html segments I'm interested in. Remember, I'm looking to scrape information on 25 demands, so the div tag that I'm asking BeautifulSoup to scrape will occur 25 times and that divs contents will also occur 25 times. Looping means I'm telling my code to repeat this action automatically until there are no more of those div tags for it to scrape.
+
+```         
+
+# organize columns of csv
+with open(filename, 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+```
+
+And then I write out the column names that I want the CSV to have. Again, I've already determined what data and html sections I want, so that's what I've put as the column headers.
+
+```         
+
+    writer.writerow(['Issue', 'Title', 'Partner', 'Status', 'Updated', 'Actions'])
+```
+
+```{python}
+
+# organize columns of csv
+with open(filename, 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(['Issue', 'Title', 'Partner', 'Status', 'Updated', 'Actions'])
+
+```
+
+Time to loop-de-loop!
+
+Now I'm saying that for every time a div item pops up in the big div that I defined in line 63, I want to go through and grab something from a different section inside that div and assign it to a column in the CSV I wrote in line 88.
+
+As you can see, I also had to spend time on the 'inspect' window on my URL to figure out where my desired data points were being kept. This took some trial and error. Different data items require different kinds of loops. For some data points, I just grabbed what was in the div or tag, stripped it down to just the text and went on my way.
+
+```         
+    # issue loop
+    issues = []
+    for issue in div.find_all("p", {"data-issue-header": "index"}):
+        issues.append(issue.text.strip())
+```
+
+For others, I had to dig into a list within the tag
+
+```         
+    # partner loop
+    partners = []
+    partners_div = div.find("div", {"data-issue": "partners"})
+    partners = [li.text.strip() for li in partners_div.find_all("li")]
+    
+```
+
+Or outline special conditions
+
+```         
+    # action loop
+    actions = []
+    action_umd_modal = div.find("div", {"data-modal": "body"})
+    if action_umd_modal is not None:
+        actions = [p.text.strip() for p in action_umd_modal.find_all("p")]
+```
+
+But the big picture is that I can grab each item for as many times as they repeat (25 times, in this case). What helps me do this is the command div.find_all. I could just use the command div.find and repeat it a bunch (which I did have to do in some cases) but by using div.find_all and putting it in a loop, I'm grabbing a lot more while doing a lot less work.
+
+One of the biggest lessons here is that the basics of BeautifulSoup are pretty straightforward, but depending on how messy or clean the HTML you're trying to parse is, you'll have to make your own unique adjustments.
+
+```{python}
+
+# loop through the html for each issue card on the website
+    for div in divs:
+        # issue loop
+        issues = []
+        for issue in div.find_all("p", {"data-issue-header": "index"}):
+            issues.append(issue.text.strip())
+        # title loop
+        titles = []
+        for title in div.find_all("h3", {"data-issue-header": "title"}):
+            titles.append(title.text.strip())
+        # partner loop
+        partners = []
+        partners_div = div.find("div", {"data-issue": "partners"})
+        partners = [li.text.strip() for li in partners_div.find_all("li")]
+        #status loop
+        status = []
+        status_p = div.find("p", {"data-issue-status": "icon"})
+        status = [span.text.strip() for span in status_p.find_all("span")]
+        # update loop
+        update = []
+        update_div = div.find("div", {"data-issue": "date"})
+        update = [time.text.strip() for time in update_div.find_all("time")]
+        # action loop
+        actions = []
+        action_umd_modal = div.find("div", {"data-modal": "body"})
+        if action_umd_modal is not None:
+            actions = [p.text.strip() for p in action_umd_modal.find_all("p")]
+
+```
+
+Once we figure out how to grab everything we want in a loop, we get everything within the tag we asked for....and more. Personally, I just wanted the text within the tag or div, not a bunch of raw html and css code that comes with it. Here, I'm cutting down our results to get just the text within the tags.
+
+![](images/Screenshot%20(41).png)
+
+Just like in the previous block, there's a basic framework, but you'll have to make adjustments based on what is hiding in the tags you scraped as well as the format of those tags.
+
+Some are as simple as this
+
+```         
+    # issues join
+    issues_text = ', '.join([issue.strip() for issue in issues])
+    
+```
+
+But for others, especially data points that were hidden within lists or in tags within tags, I had to outline that I only wanted the data in that tag if there was text.
+
+```         
+    # update join
+    update_div_text = ''
+    if update_div is not None:
+        update_div_text = ', '.join([time.text.strip() for time in update_div.find_all("time")])
+```
+
+As you can see, this is different every time and requires you to be familiar with the HTML of the site, or at least good at using the inspect tool. Sometimes I'm looking within a list tag, other times a p tag or something else. If I don't have to further define exactly which tag I need, then I just ask for the pure text, but most of these require a little bit more direction.
+
+```{python}
+
+# now we joining our results and cutting it down so that we just get the text, not the html
+
+        # issues join
+        issues_text = ', '.join([issue.strip() for issue in issues])
+        # titles join
+        titles_text = ', '.join([title.strip() for title in titles])
+        # partners join
+        partners_div_text = ''
+        if partners_div is not None:
+            partners_div_text = ', '.join([li.text.strip() for li in partners_div.find_all("li")])
+        # status join
+        status_p_text = ''
+        if status_p is not None:
+            status_p_text = ', '.join([span.text.strip() for span in status_p.find_all("span")])
+        # update join
+        update_div_text = ''
+        if update_div is not None:
+            update_div_text = ', '.join([time.text.strip() for time in update_div.find_all("time")])
+        # action join
+        action_umd_modal_text = ', '.join([p.strip() for p in actions])
+        if action_umd_modal is not None:
+            action_umd_modal_text = ', '.join([p.text.strip() for p in action_umd_modal.find_all("p")])
+
+
+```
+
+And now we have 25 rows of the data we want! We'll write the data out to a CSV and pat ourselves on the back.
+
+Here, I'm making sure the data points I've scraped are going in the correct columns that we defined back on line 90. To do this, I need to make sure I've labeled the objects my data points are being held in in a way that is intuitive to me, and hopefully for other people who want to use this as an example. then, I just make sure they are listed in the same order that the corresponding column headers are.
+
+```{python}
+
+# write it out to csv
+        writer.writerow([issues_text, titles_text, partners_div_text, status_p_text, update_div_text, action_umd_modal_text])
+
+
+```
